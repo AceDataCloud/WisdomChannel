@@ -1,0 +1,12 @@
+{
+  "name": "wechat",
+  "description": "WeChat channel for Claude Code — bridge WeChat desktop messages to Claude via the Wisdom automation service.",
+  "version": "0.1.0",
+  "keywords": [
+    "wechat",
+    "messaging",
+    "channel",
+    "mcp",
+    "wisdom"
+  ]
+}

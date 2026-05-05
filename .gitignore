@@ -1,0 +1,33 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local logs / runtime
+runtime/
+*.log
+
+# Channel state (user-specific, never commit)
+.claude/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
