@@ -3,8 +3,9 @@
 import os
 from pathlib import Path
 
-import wisdom_channel.logging as _  # noqa: F401 — configures loguru sinks
 from loguru import logger
+
+import wisdom_channel.logging as _
 
 
 def _state_dir() -> Path:
