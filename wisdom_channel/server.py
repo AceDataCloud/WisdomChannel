@@ -15,6 +15,7 @@ Transport: stdio (JSON-RPC over stdin/stdout).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sys
 import time as _time
@@ -695,10 +696,8 @@ async def main() -> None:
             _write_stream = None
             logger.info("server.run() ended, cleaning up...")
             ws_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await ws_task
-            except asyncio.CancelledError:
-                pass
             await api.close_client()
             logger.info("shut down complete")
 

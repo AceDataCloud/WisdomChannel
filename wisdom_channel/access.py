@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
@@ -41,10 +42,8 @@ def load_access() -> dict[str, Any]:
     except (json.JSONDecodeError, KeyError):
         # Corrupt file — move aside and start fresh
         backup = ACCESS_FILE.with_suffix(f".corrupt-{int(__import__('time').time())}")
-        try:
+        with contextlib.suppress(OSError):
             ACCESS_FILE.rename(backup)
-        except OSError:
-            pass
         logger.warning("access.json corrupt, moved to {}, using defaults", backup)
         return _default_access()
 
