@@ -132,6 +132,21 @@ What happens:
 4. Claude calls the `reply` tool, which posts to Wisdom's `/api/messages/send`
 5. Wisdom drives WeChat desktop and the message is delivered
 
+## Headless auto-reply (no Claude Code session)
+
+The channel above needs a **persistent interactive Claude Code session**. For an
+unattended host (no live terminal), run the bridge instead:
+
+```powershell
+wisdom-channel bridge            # optional: --model sonnet
+```
+
+It connects to the Wisdom WebSocket and, for each allowed inbound message,
+shells out to `claude -p` and posts the reply back through Wisdom — the same
+"WeChat in → Claude answers → WeChat out" loop, without a TTY. It honors the
+same `access.json` allowlist and group @-mention gating. Requires the `claude`
+CLI on `PATH`.
+
 ## Standalone test
 
 ```powershell

@@ -16,12 +16,20 @@ def _main() -> None:
         from wisdom_channel.doctor import run
 
         sys.exit(run())
+    if cmd == "bridge":
+        from wisdom_channel.bridge import run_bridge
+
+        has_model = "--model" in argv and argv.index("--model") + 1 < len(argv)
+        model = argv[argv.index("--model") + 1] if has_model else "sonnet"
+        sys.exit(asyncio.run(run_bridge(model)) or 0)
     if cmd in ("-h", "--help", "help"):
-        print("Usage: wisdom-channel [init|doctor|--test]")
+        print("Usage: wisdom-channel [init|doctor|bridge|--test]")
         print()
         print("  (no args)   Run the MCP channel server (stdio transport)")
-        print("  init        Interactively configure WISDOM_API_URL / WISDOM_API_TOKEN")
+        print("  init        Interactively configure connection + access allowlist")
         print("  doctor      Verify configuration and connectivity to the Wisdom API")
+        print("  bridge      Headless auto-reply loop (Wisdom WS -> claude -p -> reply);")
+        print("              for hosts with no persistent interactive Claude Code session")
         print("  --test      Run a one-off connectivity smoke test against the WS endpoint")
         sys.exit(0)
 
