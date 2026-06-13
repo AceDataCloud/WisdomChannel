@@ -72,28 +72,40 @@ def save_access(access: dict[str, Any]) -> None:
     logger.info("saved access: {}", json.dumps(access, ensure_ascii=False))
 
 
-def is_allowed(sender: str, access: dict[str, Any] | None = None) -> bool:
-    """Check whether a sender is allowed through the gate."""
+def _candidates(sender: str | list[str] | tuple[str, ...]) -> list[str]:
+    """Normalize a sender into the identifiers to match against the allowlist.
+
+    A caller may pass a single name, or several candidates such as
+    [display_name, wechat_id] — a match on ANY of them counts. The wechat_id is
+    stable and unspoofable, so it is the preferred identifier (esp. for admins)."""
+    if isinstance(sender, str):
+        return [sender] if sender else []
+    return [str(s) for s in sender if str(s).strip()]
+
+
+def is_allowed(sender: str | list[str], access: dict[str, Any] | None = None) -> bool:
+    """Whether a sender may pass the gate. `sender` may be one identifier or a
+    list of candidates (e.g. [display_name, wechat_id]); allowed if ANY matches."""
     if access is None:
         access = load_access()
     policy = access.get("policy", "all")
     if policy == "disabled":
-        logger.info("gate: REJECT '{}' (policy=disabled)", sender)
+        logger.info("gate: REJECT {} (policy=disabled)", sender)
         return False
     if policy == "all":
         return True
-    # allowlist mode
-    allow_from = access.get("allowFrom", [])
-    admins = access.get("admins", [])
-    allowed = sender in allow_from or sender in admins
+    # allowlist mode — match any candidate against allowFrom ∪ admins
+    allowed_set = set(access.get("allowFrom", [])) | set(access.get("admins", []))
+    cands = _candidates(sender)
+    allowed = any(c in allowed_set for c in cands)
     if not allowed:
-        logger.info("gate: REJECT '{}' (not in allowlist: {})", sender, allow_from)
+        logger.info("gate: REJECT {} (not in allowlist)", cands)
     return allowed
 
 
-def get_trust_level(sender: str, access: dict[str, Any] | None = None) -> str:
-    """Return 'admin' if sender is in the admins list, else 'normal'."""
+def get_trust_level(sender: str | list[str], access: dict[str, Any] | None = None) -> str:
+    """Return 'admin' if any sender candidate is in the admins list, else 'normal'."""
     if access is None:
         access = load_access()
-    admins = access.get("admins", [])
-    return "admin" if sender in admins else "normal"
+    admins = set(access.get("admins", []))
+    return "admin" if any(c in admins for c in _candidates(sender)) else "normal"
