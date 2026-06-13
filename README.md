@@ -39,6 +39,12 @@ Claude Code and bridges the two.
 ## Install
 
 ```powershell
+pip install wisdom-channel
+```
+
+This installs the `wisdom-channel` console script. To develop from source instead:
+
+```powershell
 git clone https://github.com/AceDataCloud/WisdomChannel.git
 cd WisdomChannel
 pip install -e .
@@ -107,6 +113,15 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..."
 claude --dangerously-skip-permissions `
        --dangerously-load-development-channels server:wechat
 ```
+
+> **Run it in a persistent, interactive terminal** (a real TTY — e.g. an RDP
+> session on the Wisdom host, `tmux`/`screen`, or a foreground terminal).
+> Channels push inbound messages into a *live* Claude Code session, so the
+> process must stay running and attached. Launched detached / without a TTY,
+> Claude Code falls back to `--print` one-shot mode and exits immediately.
+> `--channels` requires Claude Code **v2.1.80+**; the
+> `--dangerously-load-development-channels` flag loads an unpublished
+> (development) channel like this one.
 
 What happens:
 

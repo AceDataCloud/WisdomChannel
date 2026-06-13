@@ -33,6 +33,7 @@ from mcp.types import (
     Tool,
 )
 
+from wisdom_channel import __version__
 from wisdom_channel import client as api
 from wisdom_channel.access import get_trust_level, is_allowed, load_access, save_access
 from wisdom_channel.config import WECHAT_BOT_NAME, WISDOM_API_URL, WISDOM_WS_URL
@@ -101,7 +102,7 @@ INSTRUCTIONS = (
 )
 
 logger.info("initializing MCP server 'wechat'")
-server = Server("wechat", version="0.2.0", instructions=INSTRUCTIONS)
+server = Server("wechat", version=__version__, instructions=INSTRUCTIONS)
 
 # Holder for the write stream — set when server.run() starts.
 _write_stream: Any = None
