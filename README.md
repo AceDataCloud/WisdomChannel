@@ -39,6 +39,12 @@ Claude Code and bridges the two.
 ## Install
 
 ```powershell
+pip install wisdom-channel
+```
+
+This installs the `wisdom-channel` console script. To develop from source instead:
+
+```powershell
 git clone https://github.com/AceDataCloud/WisdomChannel.git
 cd WisdomChannel
 pip install -e .
@@ -108,6 +114,15 @@ claude --dangerously-skip-permissions `
        --dangerously-load-development-channels server:wechat
 ```
 
+> **Run it in a persistent, interactive terminal** (a real TTY — e.g. an RDP
+> session on the Wisdom host, `tmux`/`screen`, or a foreground terminal).
+> Channels push inbound messages into a *live* Claude Code session, so the
+> process must stay running and attached. Launched detached / without a TTY,
+> Claude Code falls back to `--print` one-shot mode and exits immediately.
+> `--channels` requires Claude Code **v2.1.80+**; the
+> `--dangerously-load-development-channels` flag loads an unpublished
+> (development) channel like this one.
+
 What happens:
 
 1. Claude Code reads `.mcp.json` and spawns `python -m wisdom_channel` over stdio
@@ -116,6 +131,21 @@ What happens:
    `notifications/claude/channel`
 4. Claude calls the `reply` tool, which posts to Wisdom's `/api/messages/send`
 5. Wisdom drives WeChat desktop and the message is delivered
+
+## Headless auto-reply (no Claude Code session)
+
+The channel above needs a **persistent interactive Claude Code session**. For an
+unattended host (no live terminal), run the bridge instead:
+
+```powershell
+wisdom-channel bridge            # optional: --model sonnet
+```
+
+It connects to the Wisdom WebSocket and, for each allowed inbound message,
+shells out to `claude -p` and posts the reply back through Wisdom — the same
+"WeChat in → Claude answers → WeChat out" loop, without a TTY. It honors the
+same `access.json` allowlist and group @-mention gating. Requires the `claude`
+CLI on `PATH`.
 
 ## Standalone test
 

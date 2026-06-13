@@ -1,16 +1,10 @@
-"""`wisdom-channel init` — interactive setup of WISDOM_API_URL / WISDOM_API_TOKEN."""
+"""`wisdom-channel init` — interactive setup of connection + access allowlist."""
 
 from __future__ import annotations
 
-import os
 import sys
-from pathlib import Path
 
-
-def _state_dir() -> Path:
-    d = Path(os.environ.get("WECHAT_STATE_DIR", Path.home() / ".claude" / "channels" / "wechat"))
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+from wisdom_channel.paths import env_file as _env_file
 
 
 def _prompt(label: str, default: str = "") -> str:
@@ -22,14 +16,19 @@ def _prompt(label: str, default: str = "") -> str:
     return value or default
 
 
+def _prompt_list(label: str, default: list[str]) -> list[str]:
+    raw = _prompt(f"{label} (comma-separated)", ", ".join(default))
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 def run() -> int:
-    """Interactive setup writing ~/.claude/channels/wechat/.env."""
+    """Interactive setup writing the .env + access.json under the state dir."""
     print("wisdom-channel init — configures the WeChat MCP channel for Claude Code.\n")
 
-    env_file = _state_dir() / ".env"
+    env_file = _env_file()
     existing: dict[str, str] = {}
     if env_file.exists():
-        for line in env_file.read_text().splitlines():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")
                 existing[k.strip()] = v.strip()
@@ -47,9 +46,31 @@ def run() -> int:
     if bot_name:
         lines.append(f"WECHAT_BOT_NAME={bot_name}")
     env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
     print(f"\nWrote {env_file}.")
-    print("Next: run `wisdom-channel doctor` to verify connectivity, then register the MCP")
+
+    # Access allowlist — imported lazily so config/.env is loaded with the
+    # values just written above.
+    from wisdom_channel.access import load_access, save_access
+
+    current = load_access()
+    print("\nAccess control — who may talk to the bot?")
+    print("  all       — reply to everyone (default)")
+    print("  allowlist — only the contacts/groups you list below")
+    print("  disabled  — drop everything")
+    policy = _prompt("policy (all/allowlist/disabled)", current.get("policy", "all"))
+    if policy not in ("all", "allowlist", "disabled"):
+        print(f"  unknown policy '{policy}', falling back to 'all'")
+        policy = "all"
+
+    access = {"policy": policy, "allowFrom": current.get("allowFrom", []), "admins": current.get("admins", [])}
+    if policy == "allowlist":
+        access["allowFrom"] = _prompt_list("allowFrom — names allowed (read-only help)", access["allowFrom"])
+    # Admins are fully trusted regardless of policy; always offer to set them.
+    access["admins"] = _prompt_list("admins — fully trusted names", access["admins"])
+    save_access(access)
+    print(f"Wrote access policy: {policy}, allowFrom={access['allowFrom']}, admins={access['admins']}.")
+
+    print("\nNext: run `wisdom-channel doctor` to verify connectivity, then register the MCP")
     print("server in your Claude Code config (see README).")
     return 0
 
