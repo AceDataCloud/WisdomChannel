@@ -1,24 +1,16 @@
 """MCP channel settings loaded from env / state dir."""
 
 import os
-from pathlib import Path
 
 from loguru import logger
 
 import wisdom_channel.logging as _
+from wisdom_channel.paths import access_file, env_file, state_dir
 
-
-def _state_dir() -> Path:
-    """Return the channel state directory, creating it if needed."""
-    d = Path(os.environ.get("WECHAT_STATE_DIR", Path.home() / ".claude" / "channels" / "wechat"))
-    d.mkdir(parents=True, exist_ok=True)
-    logger.debug("state dir: {}", d)
-    return d
-
-
-STATE_DIR = _state_dir()
-ACCESS_FILE = STATE_DIR / "access.json"
-ENV_FILE = STATE_DIR / ".env"
+STATE_DIR = state_dir()
+ACCESS_FILE = access_file()
+ENV_FILE = env_file()
+logger.debug("state dir: {}", STATE_DIR)
 
 # Load ~/.claude/channels/wechat/.env into os.environ (real env wins).
 try:

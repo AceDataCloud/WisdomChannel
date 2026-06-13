@@ -9,17 +9,16 @@ stdout is NEVER used — it's reserved for MCP JSON-RPC.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 from loguru import logger
+
+from wisdom_channel.paths import log_file
 
 # Remove default loguru handler (which writes to stderr with colors)
 logger.remove()
 
-# State dir — same as config.py uses
-_state_dir = Path.home() / ".claude" / "channels" / "wechat"
-_state_dir.mkdir(parents=True, exist_ok=True)
-LOG_FILE = _state_dir / "mcp.log"
+# Single source of truth for the state dir (honors WECHAT_STATE_DIR).
+LOG_FILE = log_file()
 
 # File handler — main log destination, rotation at 5 MB
 logger.add(
