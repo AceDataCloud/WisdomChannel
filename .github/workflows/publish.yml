@@ -1,21 +1,32 @@
 name: Publish to PyPI
 
+# Publishes to PyPI whenever the package changes on main (merge a PR → publish),
+# or manually via workflow_dispatch. Version is a unique CalVer timestamp so
+# repeated merges never collide; skip-existing makes re-runs idempotent.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "wisdom_channel/**"
+      - "pyproject.toml"
+      - "README.md"
   workflow_dispatch:
     inputs:
       version:
-        description: "Override version (defaults to CalVer YYYY.M.D)"
+        description: "Override version (defaults to CalVer YYYY.M.D.HHMM)"
         required: false
         default: ""
+
+# Avoid overlapping publishes racing on the same version.
+concurrency:
+  group: publish-pypi
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # required for PyPI trusted publishing
+      id-token: write # required for PyPI trusted publishing
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -29,10 +40,9 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
           else
-            VERSION="$(date -u +%Y.%-m.%-d)"
+            # Unique per minute → no PyPI version collisions across merges.
+            VERSION="$(date -u +%Y.%-m.%-d.%H%M)"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Using version: $VERSION"
@@ -54,3 +64,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          skip-existing: true
