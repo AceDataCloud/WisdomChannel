@@ -93,9 +93,13 @@ async def _handle(data: dict, claude: str, model: str) -> None:
     text = (data.get("text") or "").strip()
     if not text:
         return
-    sender = data.get("sender_name") or data.get("sender") or ""
+    sender_name = data.get("sender_name") or ""
+    sender_id = data.get("sender") or ""  # wechat_id — stable, unspoofable
+    sender = sender_name or sender_id or ""
     if WECHAT_BOT_NAME and sender == WECHAT_BOT_NAME:
         return  # ignore our own messages
+    # Match the allowlist against BOTH the display name and the wechat_id.
+    candidates = [c for c in (sender_name, sender_id) if c]
     conv_type = data.get("conversation_type") or "private"
     target = data.get("conversation_name") or data.get("target_name") or data.get("target") or sender
     if conv_type == "group":
@@ -103,11 +107,14 @@ async def _handle(data: dict, claude: str, model: str) -> None:
             return
         text = _strip_at_mention(text)
     access = load_access()
-    if not is_allowed(sender, access):
+    if not is_allowed(candidates, access):
         return
-    trust = get_trust_level(sender, access)
+    trust = get_trust_level(candidates, access)
 
-    logger.info("bridge inbound [{}] from={} trust={} -> {!r}", conv_type, sender, trust, text)
+    logger.info(
+        "bridge inbound [{}] from={!r} id={!r} trust={} -> {!r}",
+        conv_type, sender_name, sender_id, trust, text,
+    )
     reply = await asyncio.to_thread(_ask_claude, claude, text, model, trust)
     if not reply:
         logger.warning("bridge: empty reply for {!r}, skipping", text)

@@ -39,6 +39,16 @@ def test_trust_level():
     assert get_trust_level("Alice", _ALLOWLIST) == "normal"
 
 
+def test_match_by_any_candidate():
+    # Allowlist by stable wechat_id; match even when the display name differs.
+    acc = {"policy": "allowlist", "allowFrom": [], "admins": ["sunbitty"]}
+    assert is_allowed(["胡三岁（原：白色石头）", "sunbitty"], acc) is True
+    assert get_trust_level(["胡三岁（原：白色石头）", "sunbitty"], acc) == "admin"
+    # no candidate matches → blocked + normal
+    assert is_allowed(["someone", "wxid_other"], acc) is False
+    assert get_trust_level(["someone", "wxid_other"], acc) == "normal"
+
+
 def test_invalid_policy_normalized_to_all():
     from wisdom_channel.access import _normalize
 
