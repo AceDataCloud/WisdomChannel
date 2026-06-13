@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import contextlib
 import json
+import time
 from typing import Any
 
 from loguru import logger
 
 from wisdom_channel.config import ACCESS_FILE, STATE_DIR
+
+_VALID_POLICIES = {"all", "allowlist", "disabled"}
 
 
 def _default_access() -> dict[str, Any]:
@@ -19,29 +22,41 @@ def _default_access() -> dict[str, Any]:
     }
 
 
+def _normalize(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Validate + coerce a parsed access dict into the canonical shape."""
+    policy = parsed.get("policy", "all")
+    if policy not in _VALID_POLICIES:
+        logger.warning("invalid policy {!r} in access.json, defaulting to 'all'", policy)
+        policy = "all"
+
+    def _str_list(v: Any) -> list[str]:
+        return [str(x) for x in v if str(x).strip()] if isinstance(v, list) else []
+
+    return {
+        "policy": policy,
+        "allowFrom": _str_list(parsed.get("allowFrom")),
+        "admins": _str_list(parsed.get("admins")),
+    }
+
+
 def load_access() -> dict[str, Any]:
-    """Read access.json, returning defaults if absent or corrupt."""
+    """Read access.json, returning validated defaults if absent or corrupt."""
     try:
-        raw = ACCESS_FILE.read_text(encoding="utf-8")
-        parsed = json.loads(raw)
-        result = {
-            "policy": parsed.get("policy", "all"),
-            "allowFrom": parsed.get("allowFrom", []),
-            "admins": parsed.get("admins", []),
-        }
+        parsed = json.loads(ACCESS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(parsed, dict):
+            raise ValueError("access.json is not an object")
+        result = _normalize(parsed)
         logger.debug(
             "loaded access: policy={}, allowFrom={}, admins={}",
-            result["policy"],
-            result["allowFrom"],
-            result["admins"],
+            result["policy"], result["allowFrom"], result["admins"],
         )
         return result
     except FileNotFoundError:
         logger.debug("no access.json at {}, using defaults (policy=all)", ACCESS_FILE)
         return _default_access()
-    except (json.JSONDecodeError, KeyError):
+    except (json.JSONDecodeError, ValueError, KeyError):
         # Corrupt file — move aside and start fresh
-        backup = ACCESS_FILE.with_suffix(f".corrupt-{int(__import__('time').time())}")
+        backup = ACCESS_FILE.with_suffix(f".corrupt-{int(time.time())}")
         with contextlib.suppress(OSError):
             ACCESS_FILE.rename(backup)
         logger.warning("access.json corrupt, moved to {}, using defaults", backup)

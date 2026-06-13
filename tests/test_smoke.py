@@ -37,3 +37,26 @@ def test_allowlist_gating():
 def test_trust_level():
     assert get_trust_level("Bob", _ALLOWLIST) == "admin"
     assert get_trust_level("Alice", _ALLOWLIST) == "normal"
+
+
+def test_invalid_policy_normalized_to_all():
+    from wisdom_channel.access import _normalize
+
+    assert _normalize({"policy": "bogus"})["policy"] == "all"
+    assert _normalize({"allowFrom": "notalist"})["allowFrom"] == []
+    assert _normalize({"admins": ["x", "", "  ", "y"]})["admins"] == ["x", "y"]
+
+
+def test_trust_enforced_in_code_not_prompt():
+    # Normal users get NO tools; admins get tools + permission bypass. This is
+    # the security boundary — enforced in the invocation, not by the prompt.
+    from wisdom_channel.bridge import _claude_args
+
+    normal = _claude_args("claude", "hi", "sonnet", "normal")
+    admin = _claude_args("claude", "hi", "sonnet", "admin")
+    # normal: tools disabled, no dangerous bypass
+    assert "--tools" in normal and normal[normal.index("--tools") + 1] == ""
+    assert "--dangerously-skip-permissions" not in normal
+    # admin: tools NOT disabled, permission bypass present
+    assert "--tools" not in admin
+    assert "--dangerously-skip-permissions" in admin
