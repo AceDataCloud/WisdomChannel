@@ -48,7 +48,9 @@ def load_access() -> dict[str, Any]:
         result = _normalize(parsed)
         logger.debug(
             "loaded access: policy={}, allowFrom={}, admins={}",
-            result["policy"], result["allowFrom"], result["admins"],
+            result["policy"],
+            result["allowFrom"],
+            result["admins"],
         )
         return result
     except FileNotFoundError:

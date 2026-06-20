@@ -69,6 +69,7 @@ WECHAT_BOT_NAME=
 | `WISDOM_API_URL` | URL of the Wisdom REST API (default `http://localhost:8000`) |
 | `WISDOM_API_TOKEN` | Optional bearer token if Wisdom auth is enabled |
 | `WECHAT_BOT_NAME` | Your WeChat display name (auto-detected if empty) |
+| `WECHAT_CONTEXT_MESSAGES` | Recent messages pulled as conversation context per reply (default `8`, `0` disables) |
 
 Optional access control at `~/.claude/channels/wechat/access.json`:
 
@@ -146,6 +147,13 @@ shells out to `claude -p` and posts the reply back through Wisdom — the same
 "WeChat in → Claude answers → WeChat out" loop, without a TTY. It honors the
 same `access.json` allowlist and group @-mention gating. Requires the `claude`
 CLI on `PATH`.
+
+Each reply is built with **conversation context**: who sent it, which group,
+who else was @-mentioned, the quoted ("引用") message, and the last
+`WECHAT_CONTEXT_MESSAGES` messages — so answers follow the thread instead of
+seeing each message in isolation. Admin (tool-bearing) mode is **private-chat
+only**: in a group, anyone who @-mentions the bot gets chat-only access, even
+admins.
 
 ## Standalone test
 
