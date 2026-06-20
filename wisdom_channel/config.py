@@ -55,6 +55,14 @@ logger.info(
     "?token=***" if WISDOM_API_TOKEN else "",
 )
 
+# How many recent messages to pull from Wisdom as conversation context for each
+# reply (0 disables history injection). Keeps Claude aware of the running thread.
+try:
+    CONTEXT_MESSAGES = int(os.environ.get("WECHAT_CONTEXT_MESSAGES", "8"))
+except ValueError:
+    CONTEXT_MESSAGES = 8
+logger.info("WECHAT_CONTEXT_MESSAGES = {}", CONTEXT_MESSAGES)
+
 # WeChat bot display name — used for @-mention detection in group chats.
 WECHAT_BOT_NAME = os.environ.get("WECHAT_BOT_NAME", "")
 if WECHAT_BOT_NAME:
