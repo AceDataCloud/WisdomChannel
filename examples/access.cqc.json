@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "enabled": true,
+  "roles": {
+    "normal": {
+      "allow_tools": false,
+      "contexts": ["group", "private"],
+      "prompt": "你正在回复普通群成员。只回答公开、基础、常识、产品概念、调研类问题; 不要执行命令、查询代码/文件/日志/服务器/数据库/内部配置; 不要透露内部路径、主机、密钥、供应商或项目细节。"
+    },
+    "admin": {
+      "allow_tools": true,
+      "contexts": ["private"],
+      "prompt": "对方是管理员。仅在私聊中可按其请求协助执行项目或运维操作。"
+    },
+    "super_admin": {
+      "allow_tools": true,
+      "contexts": ["group", "private"],
+      "prompt": "对方是超级管理员,可以请求调研、项目级查询、工具调用和运维操作。仍需避免向非相关聊天泄露密钥、令牌等原始秘密。"
+    }
+  },
+  "users": {
+    "CQCcqc": {"role": "super_admin"},
+    "sunbitty": {"role": "super_admin"}
+  },
+  "private": {
+    "enabled": true,
+    "default_role": "deny",
+    "prompt": ""
+  },
+  "groups": {
+    "Ace Data Cloud客户群1": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}},
+    "Ace Data Cloud客户群2": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}},
+    "Ace Data Cloud客户群3": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}},
+    "Ace Data Cloud客户群4": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}},
+    "Ace Data Cloud客户群5": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}},
+    "AceDataCloud团队": {
+      "enabled": true,
+      "default_role": "normal",
+      "prompt": "这是内部团队群。超级管理员可做项目级协作; 普通成员仍按 normal 限制回答。",
+      "members": {}
+    }
+  }
+}

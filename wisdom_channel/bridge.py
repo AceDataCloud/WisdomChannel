@@ -22,7 +22,7 @@ import websockets
 from loguru import logger
 
 from wisdom_channel import client as api
-from wisdom_channel.access import get_trust_level, is_allowed, load_access
+from wisdom_channel.access import AccessDecision, load_access, resolve_access, trusted_sender_id
 from wisdom_channel.config import CONTEXT_MESSAGES, WECHAT_BOT_NAME, WISDOM_WS_URL
 from wisdom_channel.context import build_prompt, is_at_me, strip_at_mention
 
@@ -36,21 +36,21 @@ _BASE_PERSONA = (
     "你是通过微信和用户对话的 AI 助手。用对方的语言、口语化回复,不要使用 Markdown 标记。"
     + _CONFIDENTIALITY
 )
-# Normal users: concise; Admins: operator (full answers, may use tools).
-_NORMAL_PERSONA = _BASE_PERSONA + "回复控制在 100 字内。"
-_ADMIN_PERSONA = _BASE_PERSONA + "对方是系统操作者,可按其请求执行操作。"
 _RECONNECT_BASE_S = 2
 _RECONNECT_MAX_S = 30
 _CLAUDE_TIMEOUT_S = 120
-
-
 def _resolve_trust(conv_type: str, candidates: list[str], access: dict) -> str:
-    """Trust level for this message — but tool-bearing 'admin' mode is private-chat
-    only. A group is a shared, lower-trust surface: anyone who @-mentions the bot
-    there gets chat-only access (no host tools), even if they are an admin."""
-    if conv_type == "group":
-        return "normal"
-    return get_trust_level(candidates, access)
+    """Backward-compatible helper for tests; real code uses resolve_access()."""
+    sender_id = candidates[-1] if candidates else ""
+    sender_name = candidates[0] if len(candidates) > 1 else ""
+    decision = resolve_access(
+        sender_name=sender_name,
+        sender_id=sender_id,
+        conversation_name="Ace Data Cloud客户群1" if conv_type == "group" else "",
+        conversation_type=conv_type,
+        access=access,
+    )
+    return decision.trust_level if decision.allowed else "normal"
 
 
 async def _fetch_history(target: str) -> list[dict]:
@@ -66,22 +66,34 @@ async def _fetch_history(target: str) -> list[dict]:
         return []
 
 
-def _claude_args(claude: str, text: str, model: str, trust: str) -> list[str]:
-    """Build the claude -p invocation. Trust is enforced HERE (in code), not by
-    prompt: only admins (listed in access.json) get tools + permission bypass."""
+def _claude_args(
+    claude: str,
+    text: str,
+    model: str,
+    role: str,
+    allow_tools: bool,
+    access_prompt: str = "",
+) -> list[str]:
+    """Build the claude -p invocation. Tool access is enforced in code."""
     common = [claude, "-p", text, "--model", model]
-    if trust == "admin":
-        # Operator: full default tools, runs in the bridge's working directory.
-        return [*common, "--dangerously-skip-permissions", "--append-system-prompt", _ADMIN_PERSONA]
-    # Normal users: no tools at all — cannot run commands or touch the host,
-    # no matter what their message says. Plain chat only.
-    return [*common, "--tools", "", "--append-system-prompt", _NORMAL_PERSONA]
+    role_line = f"当前微信访问角色: {role}。"
+    persona = _BASE_PERSONA + "\n" + role_line + ("\n" + access_prompt if access_prompt else "")
+    if allow_tools:
+        return [*common, "--dangerously-skip-permissions", "--append-system-prompt", persona]
+    return [*common, "--tools", "", "--append-system-prompt", persona]
 
 
-def _ask_claude(claude: str, text: str, model: str, trust: str) -> str:
+def _ask_claude(claude: str, text: str, model: str, decision: AccessDecision) -> str:
     try:
         proc = subprocess.run(
-            _claude_args(claude, text, model, trust),
+            _claude_args(
+                claude,
+                text,
+                model,
+                decision.role,
+                decision.allow_tools,
+                decision.prompt,
+            ),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -102,14 +114,16 @@ async def _handle(data: dict, claude: str, model: str) -> None:
     text = (data.get("text") or "").strip()
     if not text:
         return
+    access = load_access()
     sender_name = data.get("sender_name") or ""
-    sender_id = data.get("sender") or ""  # wechat_id — stable, unspoofable
+    sender_id = trusted_sender_id(data, access)
     sender = sender_name or sender_id or ""
     if WECHAT_BOT_NAME and sender == WECHAT_BOT_NAME:
         return  # ignore our own messages
-    # Match the allowlist against BOTH the display name and the wechat_id.
-    candidates = [c for c in (sender_name, sender_id) if c]
-    conv_type = data.get("conversation_type") or "private"
+    conv_type = data.get("conversation_type") or ""
+    if conv_type not in {"group", "private"}:
+        logger.info("bridge dropped message with unknown conversation_type={!r}", conv_type)
+        return
     target = (
         data.get("conversation_name") or data.get("target_name") or data.get("target") or sender
     )
@@ -117,10 +131,22 @@ async def _handle(data: dict, claude: str, model: str) -> None:
         if not is_at_me(text, data.get("mentions"), WECHAT_BOT_NAME):
             return
         text = strip_at_mention(text, WECHAT_BOT_NAME)
-    access = load_access()
-    if not is_allowed(candidates, access):
+    decision = resolve_access(
+        sender_name=sender_name,
+        sender_id=sender_id,
+        conversation_name=target,
+        conversation_type=conv_type,
+        access=access,
+    )
+    if not decision.allowed:
+        logger.info(
+            "bridge dropped [{}] from={!r} id={!r}: {}",
+            conv_type,
+            sender_name,
+            sender_id,
+            decision.reason,
+        )
         return
-    trust = _resolve_trust(conv_type, candidates, access)
 
     history = await _fetch_history(target)
     prompt = build_prompt(data, text, history, WECHAT_BOT_NAME, history_limit=CONTEXT_MESSAGES)
@@ -130,11 +156,11 @@ async def _handle(data: dict, claude: str, model: str) -> None:
         conv_type,
         sender_name,
         sender_id,
-        trust,
+        decision.trust_level,
         len(history),
         text,
     )
-    reply = await asyncio.to_thread(_ask_claude, claude, prompt, model, trust)
+    reply = await asyncio.to_thread(_ask_claude, claude, prompt, model, decision)
     if not reply:
         logger.warning("bridge: empty reply for {!r}, skipping", text)
         return

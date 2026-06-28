@@ -144,7 +144,12 @@ def test_build_prompt_includes_quote_when_present():
 
 
 # ── trust resolution (security boundary) ──────────────────────────────────────
-_ADMIN_ACCESS = {"policy": "allowlist", "allowFrom": [], "admins": ["boss"]}
+_ADMIN_ACCESS = {
+    "version": 3,
+    "users": {"boss": {"role": "admin"}},
+    "private": {"enabled": True, "default_role": "deny"},
+    "groups": {"Ace Data Cloud客户群1": {"enabled": True, "default_role": "normal", "members": {}}},
+}
 
 
 def test_admin_gets_admin_trust_in_private():

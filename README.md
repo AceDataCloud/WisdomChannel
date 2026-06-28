@@ -75,20 +75,63 @@ Optional access control at `~/.claude/channels/wechat/access.json`:
 
 ```json
 {
-  "policy": "allowlist",
-  "allowFrom": ["Alice", "Work Group"],
-  "admins": ["Alice"]
+  "version": 3,
+  "enabled": true,
+  "roles": {
+    "normal": {
+      "allow_tools": false,
+      "contexts": ["group", "private"],
+      "prompt": "Only answer public/basic/general questions. Do not inspect or modify internal projects, files, logs, servers, or databases."
+    },
+    "admin": {
+      "allow_tools": true,
+      "contexts": ["private"],
+      "prompt": "Trusted private-chat operator."
+    },
+    "super_admin": {
+      "allow_tools": true,
+      "contexts": ["group", "private"],
+      "prompt": "Trusted operator in approved groups and private chat."
+    }
+  },
+  "users": {
+    "CQCcqc": {"role": "super_admin"},
+    "sunbitty": {"role": "super_admin"}
+  },
+  "private": {"enabled": true, "default_role": "deny", "prompt": ""},
+  "groups": {
+    "Ace Data Cloud客户群1": {"enabled": true, "default_role": "normal", "prompt": "", "members": {}}
+  }
 }
 ```
 
-| Policy | Behavior |
-|--------|----------|
-| `all` (default) | Forward every inbound message |
-| `allowlist`     | Forward only senders in `allowFrom` / `admins` |
-| `disabled`      | Drop everything |
+| Field | Behavior |
+|-------|----------|
+| `enabled` | Global switch. `false` drops all inbound messages. |
+| `roles` | Named permission profiles. `allow_tools=false` is enforced in bridge mode with `--tools ""`. |
+| `users` | Stable WeChat IDs mapped to roles. Display names are not trusted for privilege. |
+| `private.default_role` | Role for unmatched private chats. Use `deny` to ignore unknown private messages. |
+| `groups` | Exact group-name whitelist. Unlisted groups are ignored. |
+| `groups.*.default_role` | Role for ordinary members in that group, usually `normal`. |
+| `groups.*.members` | Optional per-group stable-ID overrides, including `deny` or promotion to another role. |
 
-`admins` are fully trusted — Claude executes their requests without confirmation.
-`allowFrom` users get polite, read-only assistance.
+Normal users get polite, chat-only assistance. In `wisdom-channel bridge`, this
+is enforced in code with `claude -p --tools ""`. Super admins can perform
+operator actions; use stable WeChat IDs for these entries.
+
+For production safety, prefer `wisdom-channel bridge`: it enforces normal-user
+chat-only mode in code. Interactive Claude Code channel mode receives the same
+`trust_level`, `allow_tools`, and `access_prompt` metadata, but Claude Code owns
+tool execution inside the live session.
+
+Manage the policy locally:
+
+```powershell
+wisdom-channel access view
+wisdom-channel access allow-group "Ace Data Cloud客户群1"
+wisdom-channel access add-super-admin sunbitty
+wisdom-channel access add-user wxid_xxx normal "Alice"
+```
 
 ## Run
 
@@ -151,9 +194,9 @@ CLI on `PATH`.
 Each reply is built with **conversation context**: who sent it, which group,
 who else was @-mentioned, the quoted ("引用") message, and the last
 `WECHAT_CONTEXT_MESSAGES` messages — so answers follow the thread instead of
-seeing each message in isolation. Admin (tool-bearing) mode is **private-chat
-only**: in a group, anyone who @-mentions the bot gets chat-only access, even
-admins.
+seeing each message in isolation. Tool access follows the matched role: the
+default `admin` role is private-chat only, while `super_admin` works in approved
+groups and private chat.
 
 ## Standalone test
 
