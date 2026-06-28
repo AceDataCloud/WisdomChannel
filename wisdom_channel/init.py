@@ -52,32 +52,41 @@ def run() -> int:
 
     # Access allowlist — imported lazily so config/.env is loaded with the
     # values just written above.
-    from wisdom_channel.access import load_access, save_access
+    from wisdom_channel.access import (
+        ROLE_DENY,
+        ROLE_NORMAL,
+        ROLE_SUPER_ADMIN,
+        load_access,
+        save_access,
+    )
 
     current = load_access()
     print("\nAccess control — who may talk to the bot?")
-    print("  all       — reply to everyone (default)")
-    print("  allowlist — only the contacts/groups you list below")
-    print("  disabled  — drop everything")
-    policy = _prompt("policy (all/allowlist/disabled)", current.get("policy", "all"))
-    if policy not in ("all", "allowlist", "disabled"):
-        print(f"  unknown policy '{policy}', falling back to 'all'")
-        policy = "all"
+    print("  groups are explicit whitelist entries")
+    print("  users are keyed by stable WeChat ID; display names are not trusted for roles")
+    enabled_raw = _prompt("enabled (true/false)", "true" if current.get("enabled", True) else "false")
+    groups = _prompt_list("allowed groups", list(current.get("groups", {}).keys()))
+    super_admins = _prompt_list(
+        "super admin WeChat IDs", [key for key, value in current.get("users", {}).items() if value.get("role") == ROLE_SUPER_ADMIN]
+    )
+    private_default = _prompt("private default role", current.get("private", {}).get("default_role", ROLE_DENY))
 
-    access = {
-        "policy": policy,
-        "allowFrom": current.get("allowFrom", []),
-        "admins": current.get("admins", []),
+    access = current
+    access["version"] = 3
+    access["enabled"] = enabled_raw.lower() not in {"0", "false", "no", "disabled"}
+    access.setdefault("private", {})["default_role"] = private_default or ROLE_DENY
+    access["groups"] = {
+        name: current.get("groups", {}).get(name, {"enabled": True, "default_role": ROLE_NORMAL, "prompt": "", "members": {}})
+        for name in groups
     }
-    if policy == "allowlist":
-        access["allowFrom"] = _prompt_list(
-            "allowFrom — names allowed (read-only help)", access["allowFrom"]
-        )
-    # Admins are fully trusted regardless of policy; always offer to set them.
-    access["admins"] = _prompt_list("admins — fully trusted names", access["admins"])
+    users = access.setdefault("users", {})
+    for user_id in super_admins:
+        users[user_id] = {"role": ROLE_SUPER_ADMIN}
     save_access(access)
     print(
-        f"Wrote access policy: {policy}, allowFrom={access['allowFrom']}, admins={access['admins']}."
+        "Wrote access policy: "
+        f"enabled={access['enabled']}, groups={list(access['groups'].keys())}, "
+        f"super_admins={super_admins}, private.default_role={access['private']['default_role']}."
     )
 
     print("\nNext: run `wisdom-channel doctor` to verify connectivity, then register the MCP")
