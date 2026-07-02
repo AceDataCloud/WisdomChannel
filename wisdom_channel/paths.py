@@ -28,9 +28,5 @@ def access_file() -> Path:
     return state_dir() / "access.json"
 
 
-def scrub_file() -> Path:
-    return state_dir() / "scrub.json"
-
-
 def log_file() -> Path:
     return state_dir() / "mcp.log"

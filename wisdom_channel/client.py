@@ -6,7 +6,6 @@ import httpx
 from loguru import logger
 
 from wisdom_channel.config import WISDOM_API_TOKEN, WISDOM_API_URL
-from wisdom_channel.scrub import scrub_text
 
 
 def _headers() -> dict[str, str]:
@@ -57,16 +56,6 @@ async def get_account() -> dict:
 
 
 async def send_message(target: str, text: str, **kwargs: str | None) -> dict:
-    # Output-side confidentiality scrub: the single choke point for every reply
-    # (bridge auto-reply + MCP send tool), so no leak path bypasses it.
-    scrubbed = scrub_text(text)
-    if scrubbed.hits:
-        logger.warning(
-            "send_message: scrub redacted {} sensitive token(s) before sending to {}",
-            len(scrubbed.hits),
-            target,
-        )
-    text = scrubbed.text
     payload: dict[str, str | list[str]] = {"target": target, "type": "text", "text": text}
     if kwargs.get("image_url"):
         payload["type"] = "image"

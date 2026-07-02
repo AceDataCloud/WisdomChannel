@@ -70,39 +70,6 @@ WECHAT_BOT_NAME=
 | `WISDOM_API_TOKEN` | Optional bearer token if Wisdom auth is enabled |
 | `WECHAT_BOT_NAME` | Your WeChat display name (auto-detected if empty) |
 | `WECHAT_CONTEXT_MESSAGES` | Recent messages pulled as conversation context per reply (default `8`, `0` disables) |
-| `WECHAT_SCRUB_ENABLED` | Redact upstream/internal identifiers from every outbound reply (default `true`) |
-| `WECHAT_SCRUB_MODE` | `redact` (replace tokens, default) or `block` (drop the whole reply) |
-| `WECHAT_SCRUB_REPLACEMENT` | Replacement text in `redact` mode (default `我们的服务`) |
-
-### Confidentiality scrub
-
-Defence-in-depth on top of the system prompt's confidentiality rule: **every**
-outbound reply (headless bridge *and* the MCP `send_message` tool) is run through
-a denylist that redacts upstream provider aliases and internal infrastructure
-identifiers (container images, k8s service DNS, cloud resource ids, private IPs)
-before it reaches WeChat. The denylist lives in code + `scrub.json` — never in
-the model prompt — so it can't itself become a leak surface.
-
-Extend it (without a redeploy) at `~/.claude/channels/wechat/scrub.json`:
-
-```json
-{
-  "enabled": true,
-  "mode": "redact",
-  "terms": ["my-upstream-alias", "another-vendor"],
-  "patterns": ["\\binternal-host-\\w+\\b"]
-}
-```
-
-`terms` (literal, case-insensitive) and `patterns` (regex) are **added** to the
-built-in defaults; `enabled`/`mode`/`replacement`/`block_message` override the
-env vars when present. Caught tokens are logged (WARNING) so you can audit how
-often the prompt-level guardrail alone would have leaked.
-
-> `scrub.json` is trusted operator config (only someone with write access to the
-> channel state dir can edit it). Custom `patterns` are compiled and run on every
-> reply — avoid catastrophic-backtracking regex (e.g. `(a+)+b`) or you can hang
-> the reply loop. The built-in defaults are backtracking-safe.
 
 Optional access control at `~/.claude/channels/wechat/access.json`:
 
