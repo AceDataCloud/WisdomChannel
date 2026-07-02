@@ -69,23 +69,3 @@ if WECHAT_BOT_NAME:
     logger.info("WECHAT_BOT_NAME = {}", WECHAT_BOT_NAME)
 else:
     logger.info("WECHAT_BOT_NAME = (empty — group @-mention filter will match any @)")
-
-
-def _env_bool(key: str, default: bool) -> bool:
-    v = os.environ.get(key)
-    if v is None:
-        return default
-    return v.strip().lower() in ("1", "true", "yes", "on")
-
-
-# Output-side confidentiality scrub (defence-in-depth over the prompt guardrail).
-# Every outbound reply is redacted of upstream provider aliases / internal infra
-# identifiers before it reaches WeChat. Denylist lives in code + scrub.json, not
-# in the model prompt. mode: "redact" (replace tokens) or "block" (drop the reply).
-SCRUB_ENABLED = _env_bool("WECHAT_SCRUB_ENABLED", True)
-SCRUB_MODE = os.environ.get("WECHAT_SCRUB_MODE", "redact").strip().lower()
-SCRUB_REPLACEMENT = os.environ.get("WECHAT_SCRUB_REPLACEMENT", "我们的服务")
-SCRUB_BLOCK_MESSAGE = os.environ.get(
-    "WECHAT_SCRUB_BLOCK_MESSAGE", "抱歉，这个问题我暂时不方便回答。"
-)
-logger.info("WECHAT_SCRUB_ENABLED = {} (mode={})", SCRUB_ENABLED, SCRUB_MODE)
