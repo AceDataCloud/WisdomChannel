@@ -1,6 +1,7 @@
 """Entry point: python -m wisdom_channel [init|doctor|--test]"""
 
 import asyncio
+import json
 import sys
 
 
@@ -26,8 +27,17 @@ def _main() -> None:
         has_model = "--model" in argv and argv.index("--model") + 1 < len(argv)
         model = argv[argv.index("--model") + 1] if has_model else "sonnet"
         sys.exit(asyncio.run(run_bridge(model)) or 0)
+    if cmd == "onboard":
+        from wisdom_channel.onboarding import onboard_customer
+
+        if len(argv) < 2 or not argv[1].strip():
+            print("Usage: wisdom-channel onboard <customer-name>")
+            sys.exit(2)
+        result = asyncio.run(onboard_customer(argv[1]))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        sys.exit(0 if result.get("ok") else 1)
     if cmd in ("-h", "--help", "help"):
-        print("Usage: wisdom-channel [init|doctor|access|bridge|--test]")
+        print("Usage: wisdom-channel [init|doctor|access|bridge|onboard|--test]")
         print()
         print("  (no args)   Run the MCP channel server (stdio transport)")
         print("  init        Interactively configure connection + access allowlist")
@@ -35,6 +45,7 @@ def _main() -> None:
         print("  access      View/edit access policy from the local terminal")
         print("  bridge      Headless auto-reply loop (Wisdom WS -> claude -p -> reply);")
         print("              for hosts with no persistent interactive Claude Code session")
+        print("  onboard     Create a dedicated support group for a new customer (scenario ④)")
         print("  --test      Run a one-off connectivity smoke test against the WS endpoint")
         sys.exit(0)
 

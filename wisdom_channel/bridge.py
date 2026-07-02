@@ -23,7 +23,12 @@ from loguru import logger
 
 from wisdom_channel import client as api
 from wisdom_channel.access import AccessDecision, load_access, resolve_access, trusted_sender_id
-from wisdom_channel.config import CONTEXT_MESSAGES, WECHAT_BOT_NAME, WISDOM_WS_URL
+from wisdom_channel.config import (
+    CONTEXT_MESSAGES,
+    ONBOARDING_ENABLED,
+    WECHAT_BOT_NAME,
+    WISDOM_WS_URL,
+)
 from wisdom_channel.context import build_prompt, is_at_me, strip_at_mention
 
 # Generic confidentiality (no hardcoded vendor denylist — that is itself a leak
@@ -168,6 +173,25 @@ async def _handle(data: dict, claude: str, model: str) -> None:
     logger.info("bridge sent -> {}", target)
 
 
+async def _handle_friend_added(data: dict) -> None:
+    """Auto-onboard a newly added customer (scenario ④), if enabled.
+
+    Dormant until Wisdom emits a ``friend.added`` event; guarded by
+    ``ONBOARDING_ENABLED`` so it never fires unless explicitly configured.
+    """
+    if not ONBOARDING_ENABLED:
+        return
+    customer = (data.get("name") or data.get("nickname") or data.get("sender_name") or "").strip()
+    if not customer:
+        logger.warning("friend.added: no customer name in {!r}", data)
+        return
+    from wisdom_channel.onboarding import onboard_customer
+
+    logger.info("friend.added: onboarding {!r}", customer)
+    result = await onboard_customer(customer)
+    logger.info("friend.added: onboarding result {}", result)
+
+
 async def run_bridge(model: str = "sonnet") -> int:
     claude = shutil.which("claude")
     if not claude:
@@ -193,6 +217,10 @@ async def run_bridge(model: str = "sonnet") -> int:
                         continue
                     if ev.get("event") == "message.new":
                         task = asyncio.create_task(_handle(ev.get("data") or {}, claude, model))
+                        pending.add(task)
+                        task.add_done_callback(pending.discard)
+                    elif ev.get("event") == "friend.added":
+                        task = asyncio.create_task(_handle_friend_added(ev.get("data") or {}))
                         pending.add(task)
                         task.add_done_callback(pending.discard)
         except asyncio.CancelledError:

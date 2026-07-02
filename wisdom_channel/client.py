@@ -130,3 +130,59 @@ async def get_messages(target: str, limit: int = 20) -> dict:
     logger.debug("GET /api/messages → {}", r.status_code)
     r.raise_for_status()
     return r.json()
+
+
+# --- UI tasks (group ops are queued and run asynchronously on the CVM) --------
+
+
+async def wait_task(task_id: str, *, timeout: float = 90.0, poll: float = 1.0) -> dict:
+    """Poll GET /api/tasks/{id} until it finishes; return the final UiTaskOut.
+
+    Group create/rename/invite are queued UI tasks (202 + task id). Onboarding
+    is sequential and must wait for each step to actually complete before the
+    next, so we poll to a terminal status here.
+    """
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        r = await get_client().get(f"/api/tasks/{task_id}")
+        r.raise_for_status()
+        task = r.json()
+        if task.get("status") in ("succeeded", "failed"):
+            return task
+        await asyncio.sleep(poll)
+    logger.warning("wait_task: {} timed out after {}s", task_id, timeout)
+    return {"id": task_id, "status": "timeout"}
+
+
+async def _post_and_wait(path: str, payload: dict, *, timeout: float = 90.0) -> dict:
+    logger.info("POST {} payload={}", path, payload)
+    r = await get_client().post(path, json=payload)
+    logger.info("POST {} → {}: {}", path, r.status_code, r.text[:200])
+    r.raise_for_status()
+    task = r.json()
+    tid = task.get("id")
+    if not tid:
+        return task
+    return await wait_task(tid, timeout=timeout)
+
+
+async def create_group(members: list[str]) -> dict:
+    """POST /api/groups — start a group with ≥2 members; waits for completion.
+
+    Result (in the returned UiTaskOut's ``result``) is
+    ``{"created": bool, "selected": [...], "requested": [...]}``.
+    """
+    return await _post_and_wait("/api/groups", {"members": members})
+
+
+async def rename_group(group: str, new_name: str) -> dict:
+    """POST /api/groups/rename — rename an existing group; waits for completion."""
+    return await _post_and_wait("/api/groups/rename", {"group": group, "new_name": new_name})
+
+
+async def invite_to_group(group: str, members: list[str]) -> dict:
+    """POST /api/groups/invite — add members to an existing group; waits for completion."""
+    return await _post_and_wait("/api/groups/invite", {"group": group, "members": members})

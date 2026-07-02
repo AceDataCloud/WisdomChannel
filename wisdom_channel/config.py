@@ -69,3 +69,42 @@ if WECHAT_BOT_NAME:
     logger.info("WECHAT_BOT_NAME = {}", WECHAT_BOT_NAME)
 else:
     logger.info("WECHAT_BOT_NAME = (empty — group @-mention filter will match any @)")
+
+
+# --- Customer onboarding (scenario ④) ----------------------------------------
+# When a new customer is added, auto-create a dedicated support group, name it,
+# pull in the support team, and (optionally) add the customer to a shared big
+# group + post a welcome message. Fully config-driven; nothing is hardcoded.
+
+
+def _split_list(raw: str) -> list[str]:
+    """Parse a comma/semicolon/newline-separated list into clean names."""
+    parts: list[str] = []
+    for chunk in raw.replace("；", ";").replace("，", ",").replace("\n", ",").split(","):
+        for piece in chunk.split(";"):
+            name = piece.strip()
+            if name:
+                parts.append(name)
+    return parts
+
+
+ONBOARDING_ENABLED = os.environ.get("ONBOARDING_ENABLED", "").lower() in ("1", "true", "yes", "on")
+# Support-team members always pulled into the new group (nickname / remark / 微信号).
+ONBOARDING_SUPPORT_MEMBERS = _split_list(os.environ.get("ONBOARDING_SUPPORT_MEMBERS", ""))
+# Name template; ``{customer}`` is substituted with the customer's display name.
+ONBOARDING_GROUP_NAME_TEMPLATE = os.environ.get(
+    "ONBOARDING_GROUP_NAME_TEMPLATE", "{customer}专属客服群"
+)
+# Optional existing "big" customer group to also invite the new customer into.
+ONBOARDING_BIG_GROUP = os.environ.get("ONBOARDING_BIG_GROUP", "").strip()
+# Optional welcome message posted into the new support group.
+ONBOARDING_WELCOME = os.environ.get("ONBOARDING_WELCOME", "").strip()
+
+logger.info(
+    "ONBOARDING enabled={} support={} template={!r} big_group={!r} welcome={}",
+    ONBOARDING_ENABLED,
+    ONBOARDING_SUPPORT_MEMBERS,
+    ONBOARDING_GROUP_NAME_TEMPLATE,
+    ONBOARDING_BIG_GROUP or "(none)",
+    "set" if ONBOARDING_WELCOME else "(none)",
+)
