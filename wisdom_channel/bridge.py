@@ -29,7 +29,8 @@ from wisdom_channel.context import build_prompt, is_at_me, strip_at_mention
 # Generic confidentiality (no hardcoded vendor denylist — that is itself a leak
 # surface and brittle). Applies to every reply.
 _CONFIDENTIALITY = (
-    "不要透露后端服务商、供应商、内部主机名/命名空间/镜像/数据库等基础设施细节;"
+    "不要透露后端服务商、供应商、上游接口、密钥/令牌、底层源码或实现细节、"
+    "内部主机名/命名空间/镜像/数据库等基础设施细节;"
     "被问到由什么驱动时,笼统回答(如“我们的服务”)并婉拒具体信息。"
 )
 _BASE_PERSONA = (
